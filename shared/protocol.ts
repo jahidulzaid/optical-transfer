@@ -56,6 +56,8 @@
 // frames on the magic check rather than misparsing a header whose fields have
 // all moved.
 
+
+import { OpticalError } from "./optical-error";
 export const HEADER_LEN = 22;
 
 const MAGIC0 = 0xd1;
@@ -178,7 +180,7 @@ async function gunzipAsync(bytes: Uint8Array, maxBytes: number): Promise<Uint8Ar
     total += value.length;
     if (total > maxBytes) {
       await reader.cancel();
-      throw new Error("The recovered file expands past its declared length.");
+      throw new OpticalError("inflateOverflow");
     }
     chunks.push(value);
   }
@@ -262,15 +264,15 @@ export async function packFile(
   type: string,
   bytes: Uint8Array,
 ): Promise<PackedOpticalFile> {
-  if (bytes.length === 0) throw new Error("Choose a non-empty file.");
+  if (bytes.length === 0) throw new OpticalError("fileEmpty");
   if (bytes.length > MAX_FILE_BYTES) {
-    throw new Error(`Files are limited to ${MAX_FILE_LABEL} in this browser build.`);
+    throw new OpticalError("fileOverLimit", { limit: MAX_FILE_LABEL });
   }
 
   const nameBytes = textEncoder.encode(safeFileName(name));
   const typeBytes = textEncoder.encode(type || "application/octet-stream");
   if (nameBytes.length > 0xffff || typeBytes.length > 0xffff) {
-    throw new Error("The file name or media type is too long.");
+    throw new OpticalError("fileNameTooLong");
   }
 
   // Too small to be worth a gzip header, or a format gzip cannot help with.
@@ -305,14 +307,14 @@ export async function packFile(
 }
 
 export async function unpackFile(container: Uint8Array): Promise<OpticalFile> {
-  if (container.length < FILE_HEADER_LEN) throw new Error("The recovered file header is incomplete.");
+  if (container.length < FILE_HEADER_LEN) throw new OpticalError("containerTruncated");
   for (let i = 0; i < FILE_MAGIC.length; i++) {
-    if (container[i] !== FILE_MAGIC[i]) throw new Error("The recovered file header is invalid.");
+    if (container[i] !== FILE_MAGIC[i]) throw new OpticalError("containerBadMagic");
   }
 
   const view = new DataView(container.buffer, container.byteOffset, container.byteLength);
   const compressionByte = view.getUint8(4);
-  if (compressionByte > 1) throw new Error("The recovered file uses unsupported compression.");
+  if (compressionByte > 1) throw new OpticalError("containerBadCompression");
   const compression: CompressionMode = compressionByte === 1 ? "gzip" : "none";
   const nameLength = view.getUint16(5, true);
   const typeLength = view.getUint16(7, true);
@@ -326,24 +328,24 @@ export async function unpackFile(container: Uint8Array): Promise<OpticalFile> {
     transmittedLength > MAX_FILE_BYTES ||
     dataOffset + transmittedLength !== container.length
   ) {
-    throw new Error("The recovered file length does not match its header.");
+    throw new OpticalError("containerLengthMismatch");
   }
 
   const transmitted = container.slice(dataOffset);
   if (compression === "gzip") {
-    if (transmitted.length < 18) throw new Error("The recovered gzip payload is incomplete.");
+    if (transmitted.length < 18) throw new OpticalError("gzipIncomplete");
     const trailer = new DataView(
       transmitted.buffer,
       transmitted.byteOffset + transmitted.byteLength - 4,
       4,
     );
     if (trailer.getUint32(0, true) !== fileLength) {
-      throw new Error("The gzip payload length does not match its file header.");
+      throw new OpticalError("gzipLengthMismatch");
     }
   }
   const bytes = compression === "gzip" ? await gunzipAsync(transmitted, fileLength) : transmitted;
   if (bytes.length !== fileLength) {
-    throw new Error("The decompressed file length does not match its header.");
+    throw new OpticalError("decompressedLengthMismatch");
   }
 
   return {
@@ -465,6 +467,11 @@ export function classifyFrame(bytes: Uint8Array): FrameVerdict {
  * What to put on screen for a verdict, or null when there is nothing worth
  * saying. Lives beside the format rather than in the receiver's DOM code so
  * every client — web, iOS, Android — words the same failure the same way.
+ *
+ * This is the ENGLISH reference wording. Localized clients render the same
+ * verdicts from their locale catalog (shared/i18n's verdictMessage), whose
+ * English entries are pinned to this function by tests/i18n.test.ts — the
+ * contract is per-language now, keyed by verdict kind, not per-string.
  */
 export function frameVerdictMessage(verdict: FrameVerdict): string | null {
   switch (verdict.kind) {

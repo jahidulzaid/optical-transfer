@@ -16,7 +16,11 @@ a home screen.
 
 Files up to 64 MB (or a pasted text snippet), filename and media type
 preserved, gzip only when it helps, SHA-256 verified before anything is
-offered — and received video plays right in the page. Currently measured at
+offered — and received video plays right in the page. The interface speaks
+twelve languages (English, español, português, français, Deutsch, italiano,
+русский, हिन्दी, 简体中文, 日本語, 한국어, العربية — with right-to-left
+layout where it belongs); machine-drafted translations say so on the page
+until a native speaker has [reviewed them](docs/technical/localization.md). Currently measured at
 **<!-- speed:begin -->418.5 KB/s sustained<!-- speed:end -->** screen to
 camera — [records with receipts](#measured-speed).
 
@@ -57,7 +61,8 @@ the full diagnostics run report that produced it
 **How it's built** — [architecture](docs/technical/architecture.md) ·
 [protocol](docs/technical/protocol.md) ·
 [platform quirks](docs/technical/platform-quirks.md) ·
-[build & release](docs/technical/build-and-release.md)
+[build & release](docs/technical/build-and-release.md) ·
+[localization](docs/technical/localization.md)
 
 The short version of the protocol: a screen-to-camera link has no
 back-channel, so the sender streams fountain-coded frames ([Luby

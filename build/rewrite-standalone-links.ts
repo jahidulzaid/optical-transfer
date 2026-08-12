@@ -24,11 +24,16 @@ export function rewriteStandaloneLinks(page: "send" | "receive"): Plugin {
   const rules: { from: string; to: string; required: boolean }[] = [
     {
       // The Send/Receive switcher would be two dead links here; collapse it to
-      // the badge naming the one mode this file is.
+      // the badge naming the one mode this file is. The badge carries its own
+      // catalog key so the standalone runtime translation reaches it too.
       from:
-        '<nav class="mode-nav" aria-label="Mode">' +
-        '<a href="../send/">Send</a><a href="../receive/">Receive</a></nav>',
-      to: `<span class="mode-badge">${page === "send" ? "Send" : "Receive"}</span>`,
+        '<nav class="mode-nav" aria-label="Mode" data-i18n-attr="aria-label:chrome.navAriaLabel">' +
+        '<a href="../send/" data-i18n="chrome.navSend">Send</a>' +
+        '<a href="../receive/" data-i18n="chrome.navReceive">Receive</a></nav>',
+      to:
+        page === "send"
+          ? '<span class="mode-badge" data-i18n="chrome.modeBadgeSend">Send</span>'
+          : '<span class="mode-badge" data-i18n="chrome.modeBadgeReceive">Receive</span>',
       required: true,
     },
     {
@@ -39,6 +44,13 @@ export function rewriteStandaloneLinks(page: "send" | "receive"): Plugin {
     {
       from: "Open Receive on the other device.",
       to: "Open the standalone receiver on the other device.",
+      required: false,
+    },
+    {
+      // …and the catalog key with it, so the runtime translation says the
+      // standalone wording rather than putting the hosted sentence back.
+      from: 'data-i18n="send.footerHint"',
+      to: 'data-i18n="send.footerHintStandalone"',
       required: false,
     },
     {
@@ -60,7 +72,7 @@ export function rewriteStandaloneLinks(page: "send" | "receive"): Plugin {
       // counterpart is the support.ts → support.inline.ts module swap.
       from:
         ' · <a class="support-link" href="https://buymeacoffee.com/bashalarmist" ' +
-        'target="_blank" rel="noopener noreferrer">♥ support</a>',
+        'target="_blank" rel="noopener noreferrer" data-i18n="chrome.footerSupport">♥ support</a>',
       to: "",
       required: true,
     },

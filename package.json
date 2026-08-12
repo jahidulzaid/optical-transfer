@@ -1,8 +1,11 @@
 {
   "name": "decimen-optical-transfer",
   "private": true,
-  "version": "0.5.1",
+  "version": "0.5.2",
   "license": "AGPL-3.0-or-later",
+  "engines": {
+    "node": ">=24"
+  },
   "description": "Offline file and text transfer using fountain-coded animated QR codes — screen to camera, no network.",
   "type": "module",
   "scripts": {

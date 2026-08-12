@@ -233,7 +233,7 @@ body.qr-full #stage[hidden] {
   color: var(--accent);
 }
 .progress-status span {
-  text-align: right;
+  text-align: end;
 }
 .progress > div {
   height: 100%;
@@ -592,7 +592,7 @@ details.settings label.camera-pick select {
   font-size: clamp(32px, 5vw, 56px);
   line-height: 1;
   letter-spacing: -0.05em;
-  text-align: left;
+  text-align: start;
   text-transform: none;
 }
 
@@ -756,6 +756,10 @@ details.settings label.camera-pick select {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  /* Absorb the row's slack: everything after it (project links, language)
+     packs into one cluster at the end instead of drifting apart. */
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .site-footer a {
@@ -802,7 +806,7 @@ details.settings label.camera-pick select {
   font-size: clamp(30px, 6vw, 48px);
   line-height: 1.05;
   letter-spacing: -0.05em;
-  text-align: left;
+  text-align: start;
   text-transform: none;
 }
 
@@ -815,7 +819,7 @@ details.settings label.camera-pick select {
 .status-line {
   min-height: 20px;
   max-width: none;
-  text-align: left;
+  text-align: start;
 }
 
 /* The status line is also the idle prompt and the live stream spec line, so a
@@ -826,8 +830,11 @@ details.settings label.camera-pick select {
   padding: 10px 12px;
   color: var(--red);
   background: rgba(255, 123, 114, 0.1);
-  border-left: 3px solid var(--red);
-  border-radius: 0 8px 8px 0;
+  border-inline-start: 3px solid var(--red);
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-start-end-radius: 8px;
+  border-end-end-radius: 8px;
   font-weight: 700;
 }
 
@@ -1010,7 +1017,7 @@ details.settings label.camera-pick select {
 .receiver-heading .status-line {
   max-width: 600px;
   margin: 14px 0 0;
-  text-align: left;
+  text-align: start;
   line-height: 1.4;
 }
 
@@ -1197,7 +1204,7 @@ details.settings label.camera-pick select {
 
 .help-dialog ul {
   margin: 0;
-  padding-left: 18px;
+  padding-inline-start: 18px;
 }
 
 .help-dialog li + li {
@@ -1467,4 +1474,95 @@ details.settings label.camera-pick select {
   flex: 1 1 0;
   min-width: 0;
   white-space: normal;
+}
+
+/* Localization chrome: the footer language switcher, the unreviewed-
+   translation note, and the home-page language offer. All three are wired by
+   shared/i18n/index.ts; none exist in the markup. */
+.footer-lang {
+  position: relative;
+  /* On narrow screens the identity block takes the first row; this keeps the
+     language control pinned to the row's end while the links stay at its
+     start. On wide screens the id block's flex-grow leaves this no slack, so
+     links and language sit together. */
+  margin-inline-start: auto;
+}
+/* appearance: none strips the native dropdown arrow; put an equivalent back
+   so the control still reads as a select. On the wrapper because ::after
+   can't attach to <select> itself. */
+.footer-lang::after {
+  content: "▾";
+  position: absolute;
+  inset-inline-end: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--muted);
+  font-size: 10px;
+}
+.footer-lang .lang-select {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  padding: 4px 24px 4px 10px;
+  cursor: pointer;
+}
+[dir="rtl"] .footer-lang .lang-select {
+  padding: 4px 10px 4px 24px;
+}
+.footer-lang .lang-select:hover,
+.footer-lang .lang-select:focus-visible {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.footer-lang:hover::after {
+  color: var(--accent);
+}
+
+/* One quiet line across the whole footer, above the identity row. Present
+   only while the locale's `reviewed` flag in shared/i18n/registry.ts is
+   false — a native review flips it and this disappears. */
+.i18n-note {
+  flex-basis: 100%;
+  margin: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted-dim);
+  font-size: 11px;
+}
+.i18n-note a {
+  color: var(--muted);
+  text-decoration: underline;
+}
+
+/* Home page only: a dismissible offer to switch to the visitor's language.
+   Sits above the hero, styled to be noticed once and ignorable after. */
+.locale-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 13px;
+}
+.locale-banner a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.locale-banner a:hover,
+.locale-banner a:focus-visible {
+  text-decoration: underline;
+}
+
+/* The card arrows point the way the text reads. */
+[dir="rtl"] .action-arrow {
+  transform: scaleX(-1);
 }

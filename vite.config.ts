@@ -22,6 +22,7 @@ import { emitAs } from "./build/emit-as";
 import { rootPwaHead } from "./build/root-pwa-head";
 import { licenseBanner } from "./build/license-banner";
 import { diagnosticsEndpoint } from "./build/diagnostics-endpoint";
+import { i18nPages } from "./build/i18n-pages";
 
 // Where the site is published, used only to make the social-card URLs absolute
 // — scrapers are inconsistent about resolving relative ones. Override with
@@ -45,6 +46,27 @@ const SITE_URL = process.env.VITE_SITE_URL ?? "https://decimen.app/";
 
 const pkg = JSON.parse(readFileSync(resolve(__dirname, "package.json"), "utf8")) as {
   version: string;
+};
+
+// Shared between the root PWA manifest and the per-locale manifests emitted
+// by i18nPages() — one identity, translated descriptions.
+const MANIFEST_BASE = {
+  name: "Decimen Optical Transfer",
+  short_name: "Decimen",
+  description:
+    "Send a file or text between two devices with a screen and a camera. No network.",
+  theme_color: "#070a11",
+  background_color: "#070a11",
+  display: "standalone" as const,
+  // Real icons, not the demo payload image this once pointed at. The
+  // maskable variant keeps the mark inside the launcher's safe zone;
+  // Android needs 192 + 512 with honest sizes to consider the app
+  // installable at all.
+  icons: [
+    { src: "icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+    { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+    { src: "icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+  ],
 };
 
 /**
@@ -116,6 +138,10 @@ export default defineConfig(({ mode }) => {
       // plugin list, so both plugins have to be registered again here.
       worker: { format: "iife", plugins: () => [useInlineVariants(__dirname), inlineCodecWasm()] },
       build: {
+        // ES2022 for top-level await: the entries await initI18n() before
+        // touching the DOM. Chrome 89 / Firefox 89 / Safari 15 — anything
+        // older already lacks the camera/wasm/worker floor this app stands on.
+        target: "es2022",
         outDir,
         emptyOutDir: false,
         assetsInlineLimit: Number.MAX_SAFE_INTEGER,
@@ -134,23 +160,8 @@ export default defineConfig(({ mode }) => {
         // We inject our own registration — see rootPwaHead().
         injectRegister: false,
         manifest: {
-          name: "Decimen Optical Transfer",
-          short_name: "Decimen",
-          description:
-            "Send a file or text between two devices with a screen and a camera. No network.",
-          theme_color: "#070a11",
-          background_color: "#070a11",
-          display: "standalone",
+          ...MANIFEST_BASE,
           start_url: "./",
-          // Real icons, not the demo payload image this once pointed at. The
-          // maskable variant keeps the mark inside the launcher's safe zone;
-          // Android needs 192 + 512 with honest sizes to consider the app
-          // installable at all.
-          icons: [
-            { src: "icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-            { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
-            { src: "icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
-          ],
         },
         workbox: {
           // Without this a rebuilt site serves stale pages indefinitely.
@@ -166,7 +177,9 @@ export default defineConfig(({ mode }) => {
           // default — and benchmark.png adds another meg; the explicit
           // ceiling removes the boundary edge and leaves headroom.
           maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
-          globPatterns: ["**/*.{js,css,html,wasm,png,svg}"],
+          // webmanifest included so the per-locale manifests emitted by
+          // i18nPages() are served offline alongside their page trees.
+          globPatterns: ["**/*.{js,css,html,wasm,png,svg,webmanifest}"],
           // Received media plays from the Cache API at a real URL: iOS Safari
           // will not reliably play a blob: URL handed to <video>/<audio>, but
           // WebKit's media loader is happy with ranged HTTP responses. The
@@ -187,10 +200,15 @@ export default defineConfig(({ mode }) => {
         },
       }),
       rootPwaHead(),
+      // After rootPwaHead so the locale copies see the final SW registration
+      // and manifest link; emits in writeBundle, before the SW precache glob.
+      i18nPages({ siteUrl: SITE_URL, tokens: TOKENS, manifest: MANIFEST_BASE }),
       licenseBanner(pkg.version),
       diagnosticsEndpoint(pkg.version),
     ],
     build: {
+      // Same ES2022/top-level-await floor as the standalone build above.
+      target: "es2022",
       rollupOptions: {
         input: {
           index: resolve(__dirname, "index.html"),

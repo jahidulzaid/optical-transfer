@@ -32,6 +32,19 @@ resolution — screen-to-camera behavior varies enormously across hardware.
 **Forks.** AGPL-3.0-or-later. Build something better on top of it — just keep
 it open under the same terms.
 
+## Translations
+
+The interface ships in twelve languages; every non-English catalog was
+machine-drafted and carries an on-page note saying so until a native speaker
+reviews it. **Translation review is the single most useful small
+contribution this project can take.** Reviewing a language means reading
+`shared/i18n/locales/<code>.ts` against the English source (`en.ts`), fixing
+what reads wrongly, and flipping that language's `reviewed` flag in
+`shared/i18n/registry.ts` — one PR, and the note disappears. Adding a new
+language is one catalog file plus a registry row; the exact steps are in
+[docs/technical/localization.md](docs/technical/localization.md). Both are
+code contributions like any other: open an issue first, and the CLA applies.
+
 ## Existing pull requests
 
 [#2](https://github.com/bashalarmistalt/decimen-optical-transfer/pull/2)
