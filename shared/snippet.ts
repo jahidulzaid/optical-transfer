@@ -5,6 +5,7 @@
 // network sits between the two devices.
 
 import { packFile, type OpticalFile, type PackedOpticalFile } from "./protocol";
+import { OpticalError } from "./optical-error";
 
 export const SNIPPET_MEDIA_TYPE = "application/vnd.decimen.snippet";
 export const SNIPPET_FILE_NAME = "snippet.txt";
@@ -22,20 +23,20 @@ export function isSnippet(file: OpticalFile): boolean {
 }
 
 export async function packSnippet(text: string): Promise<PackedOpticalFile> {
-  if (text.trim().length === 0) throw new Error("Paste or type some text before sending.");
+  if (text.trim().length === 0) throw new OpticalError("snippetEmpty");
   const bytes = encoder.encode(text);
   if (bytes.length > MAX_SNIPPET_BYTES) {
-    throw new Error(`Text snippets are limited to ${MAX_SNIPPET_LABEL}.`);
+    throw new OpticalError("snippetOverLimit", { limit: MAX_SNIPPET_LABEL });
   }
   return packFile(SNIPPET_FILE_NAME, SNIPPET_MEDIA_TYPE, bytes);
 }
 
 /** Decode an already-unpacked, already-verified snippet container. */
 export function snippetText(file: OpticalFile): string {
-  if (!isSnippet(file)) throw new Error("This stream is not a text snippet.");
+  if (!isSnippet(file)) throw new OpticalError("snippetNotText");
   try {
     return decoder.decode(file.bytes);
   } catch {
-    throw new Error("The recovered snippet is not valid UTF-8.");
+    throw new OpticalError("snippetBadUtf8");
   }
 }

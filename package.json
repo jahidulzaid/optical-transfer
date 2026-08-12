@@ -1,17 +1,20 @@
 {
   "name": "decimen-optical-transfer",
   "private": true,
-  "version": "0.5.1",
+  "version": "0.5.2",
   "license": "AGPL-3.0-or-later",
-  "description": "Offline file and text transfer using fountain-coded animated QR codes — screen to camera, no network.",
+  "engines": {
+    "node": ">=24"
+  },
+  "description": "Offline file and text transfer using fountain-coded animated QR codes \u2014 screen to camera, no network.",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node api.js && vite",
     "serve": "npm run build && vite preview",
     "demo": "vite --mode demo",
     "diagnostics": "vite --mode diagnostics",
     "benchmark": "vite --mode benchmark",
-    "build": "tsc && tsc -p tsconfig.node.json && vite build",
+    "build": "node api.js && tsc && tsc -p tsconfig.node.json && vite build",
     "build:standalone": "node -e \"require('node:fs').rmSync('dist-standalone',{recursive:true,force:true})\" && tsc && vite build --mode standalone-send && vite build --mode standalone-receive",
     "build:all": "npm run build && npm run build:standalone",
     "preview": "vite preview",

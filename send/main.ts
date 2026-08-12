@@ -15,7 +15,15 @@
 import QRCode from "qrcode";
 import { fitQrDisplaySize } from "../shared/display";
 import { gridDims, rasterizeQr } from "../shared/qr-raster";
-import { formatBytes } from "../shared/format";
+import {
+  fillRuntimeTokens,
+  fmtInt,
+  fmtNumber,
+  formatBytesL,
+  initI18n,
+  localizeError,
+  msg,
+} from "../shared/i18n";
 import {
   MAX_SOURCE_BLOCKS,
   blockLength,
@@ -25,7 +33,7 @@ import {
   sourceBlockCount,
 } from "../shared/frame-capacity";
 import { LTEncoder } from "../shared/fountain";
-import { MAX_SNIPPET_BYTES, MAX_SNIPPET_LABEL, packSnippet } from "../shared/snippet";
+import { MAX_SNIPPET_BYTES, packSnippet } from "../shared/snippet";
 import {
   MAX_FILE_BYTES,
   MAX_FILE_LABEL,
@@ -38,6 +46,8 @@ import {
 import { statusLine } from "../shared/status-line";
 import { requestScreenWakeLock } from "../shared/wake-lock";
 import { wireShareDialog } from "../shared/share-dialog";
+
+await initI18n();
 
 const MARGIN = 4; // quiet-zone modules
 const LOOKAHEAD = 3;
@@ -123,9 +133,11 @@ function currentMode(): "file" | "snippet" {
 function updateFilePicker(): void {
   const armed = currentMode() === "file" && selectedFile !== null;
   paneFile.classList.toggle("has-file", armed);
-  filePickerButton.textContent = armed ? "Stop transfer" : "Select File";
+  filePickerButton.textContent = armed ? msg.send.stopTransfer : msg.send.selectFile;
   filePickerLabel.textContent =
-    armed && selectedFile ? `Selected file: ${selectedFile.name}` : `Any file · up to ${MAX_FILE_LABEL}`;
+    armed && selectedFile
+      ? msg.send.selectedFile(selectedFile.name)
+      : fillRuntimeTokens(msg.send.anyFileUpTo);
 }
 
 /** Tear the stream down and disarm the picker. The input is cleared so the
@@ -139,7 +151,7 @@ function stopTransfer(): void {
   showStreamPanels(false);
   cfgFile.value = "";
   updateFilePicker();
-  setStatus("Choose a file to begin");
+  setStatus(msg.send.statusChooseFile);
 }
 
 /** Tap the code to fill the screen with it — a bigger physical code lets the
@@ -181,7 +193,7 @@ function applyMode(): void {
     paneFile.hidden = true;
     paneSnippet.hidden = true;
     paneDemo.hidden = false;
-    setStatus(BENCHMARK ? "Send the benchmark payload to begin" : "Choose a demo payload to begin");
+    setStatus(BENCHMARK ? msg.send.statusBenchmark : msg.send.statusChooseDemo);
     return;
   }
 
@@ -190,8 +202,8 @@ function applyMode(): void {
   paneFile.hidden = mode !== "file";
   paneSnippet.hidden = mode !== "snippet";
   // The heading used to say "Send a file" even with Text snippet selected.
-  toolTitle.textContent = mode === "snippet" ? "Send text" : "Send a file";
-  setStatus(mode === "snippet" ? "Paste or type some text to begin" : "Choose a file to begin");
+  toolTitle.textContent = mode === "snippet" ? msg.send.titleSnippet : msg.send.titleFile;
+  setStatus(mode === "snippet" ? msg.send.statusPasteText : msg.send.statusChooseFile);
   updateFilePicker();
   // A file left in the picker survives the switch, so re-arm it rather than
   // leaving a filename on screen next to "choose a file to begin".
@@ -226,15 +238,15 @@ async function startSelection(
     };
     await startStream(true);
   } catch (error) {
-    showError(error instanceof Error ? error.message : String(error));
+    showError(localizeError(error));
   }
 }
 
 /** Demo payloads ship in public/, so they sit at the site root beside /send/. */
 async function selectDemo(fileName: string): Promise<void> {
-  await startSelection(`loading ${fileName}…`, async () => {
+  await startSelection(msg.send.loadingDemo(fileName), async () => {
     const response = await fetch(`../${fileName}`);
-    if (!response.ok) throw new Error(`could not load ${fileName} (${response.status})`);
+    if (!response.ok) throw new Error(msg.send.demoLoadFailed(fileName, response.status));
     const bytes = new Uint8Array(await response.arrayBuffer());
     return { name: fileName, size: bytes.length, packed: await packFile(fileName, "image/png", bytes) };
   });
@@ -243,16 +255,16 @@ async function selectDemo(fileName: string): Promise<void> {
 async function selectFile(): Promise<void> {
   const file = cfgFile.files?.[0];
   if (!file) return;
-  await startSelection(`preparing ${file.name}…`, async () => {
+  await startSelection(msg.send.preparingFile(file.name), async () => {
     // Checked here, off File.size, rather than after reading the bytes: a file
     // well past the limit should be refused instantly instead of after the
     // browser has spent time and memory materialising it. Name the actual size —
     // "too large" without a number leaves you guessing by how much.
     if (file.size === 0) {
-      throw new Error(`${file.name} is empty — there is nothing to send.`);
+      throw new Error(msg.send.fileEmpty(file.name));
     }
     if (file.size > MAX_FILE_BYTES) {
-      throw new Error(`${file.name} is ${formatBytes(file.size)}, over the ${MAX_FILE_LABEL} limit.`);
+      throw new Error(msg.send.fileOverLimit(file.name, formatBytesL(file.size), MAX_FILE_LABEL));
     }
     const bytes = new Uint8Array(await file.arrayBuffer());
     return { name: file.name, size: file.size, packed: await packFile(file.name, file.type, bytes) };
@@ -261,9 +273,9 @@ async function selectFile(): Promise<void> {
 }
 
 async function selectSnippet(): Promise<void> {
-  await startSelection("preparing text snippet…", async () => {
+  await startSelection(msg.send.preparingSnippet, async () => {
     const packed = await packSnippet(snippetText.value);
-    return { name: "Text snippet", size: packed.originalSize, packed };
+    return { name: msg.send.modeSnippet, size: packed.originalSize, packed };
   });
 }
 
@@ -272,14 +284,14 @@ async function main() {
   // counts UTF-16 units and the real check counts UTF-8 bytes, which are never
   // fewer — so this is a loose guard and packSnippet() remains authoritative.
   snippetText.maxLength = MAX_SNIPPET_BYTES;
-  snippetLabel.textContent = `Text to send · up to ${MAX_SNIPPET_LABEL}`;
+  snippetLabel.textContent = fillRuntimeTokens(msg.send.snippetLabelWithMax);
 
   document.querySelector('.mode-nav a[href="../send/"]')?.setAttribute("aria-current", "page");
   if (DEMO || BENCHMARK) {
     const current = document.querySelector('.mode-nav a[href="../send/"]');
-    if (current) current.textContent = BENCHMARK ? "Benchmark" : "Demo";
+    if (current) current.textContent = BENCHMARK ? msg.send.navBenchmark : msg.send.navDemo;
     const paneLabel = paneDemo.querySelector("span");
-    if (BENCHMARK && paneLabel) paneLabel.textContent = "Benchmark payload";
+    if (BENCHMARK && paneLabel) paneLabel.textContent = msg.send.benchmarkPayload;
     // Benchmark preset: 4 codes (2×2). The announcement records the actual
     // settings either way; this just makes the canonical rig the default.
     if (BENCHMARK) cfgGrid.value = "4";
@@ -326,9 +338,7 @@ async function startStream(revealStage = false) {
   // Stale until this stream's first frame locks its version and refills them.
   showStreamPanels(false);
   if (!selectedFile) {
-    setStatus(
-      currentMode() === "snippet" ? "Paste or type some text to begin" : "Choose a file to begin",
-    );
+    setStatus(currentMode() === "snippet" ? msg.send.statusPasteText : msg.send.statusChooseFile);
     return;
   }
   const { name, size: fileSize, payload, compression, transmittedSize } = selectedFile;
@@ -354,11 +364,13 @@ async function startStream(revealStage = false) {
     const suggestion =
       smallestSufficientFrameSize(payload.length, offered) ?? minimumFrameBytes(payload.length);
     showError(
-      `${formatBytes(payload.length)} needs ` +
-        `${sourceBlockCount(payload.length, frameBytes).toLocaleString()} blocks at ` +
-        `${frameBytes} bytes per frame, and a frame can only number ` +
-        `${MAX_SOURCE_BLOCKS.toLocaleString()} of them. ` +
-        `Raise bytes / frame to ${suggestion} or more.`,
+      msg.send.capacityError(
+        formatBytesL(payload.length),
+        fmtInt(sourceBlockCount(payload.length, frameBytes)),
+        String(frameBytes),
+        fmtInt(MAX_SOURCE_BLOCKS),
+        String(suggestion),
+      ),
     );
     return;
   }
@@ -473,25 +485,23 @@ async function startStream(revealStage = false) {
       if (revealStage) scrollStageIntoView();
       // The stream's parameters live at the bottom of Transfer settings, next
       // to the knobs that produced them; the status line stays for prose.
-      spec("spec-fps").textContent =
-        gridCodes > 1 ? `${txFps} fps × ${gridCodes} codes` : `${txFps} fps`;
-      spec("spec-frame").textContent =
-        gridCodes > 1 ? `${frameBytes} bytes × ${gridCodes}` : `${frameBytes} bytes`;
+      spec("spec-fps").textContent = msg.send.fpsValue(String(txFps), gridCodes);
+      spec("spec-frame").textContent = msg.send.frameBytesValue(String(frameBytes), gridCodes);
       spec("spec-qr").textContent =
         `V${version}${gridCodes > 1 ? ` ×${gridCodes}` : ""} · ECC ${ecc}`;
-      spec("spec-payload").textContent = `${name} · ${formatBytes(fileSize)}`;
+      spec("spec-payload").textContent = `${name} · ${formatBytesL(fileSize)}`;
       spec("spec-compression").textContent =
-        compression === "gzip" ? `gzip → ${formatBytes(transmittedSize)}` : "none";
+        compression === "gzip" ? msg.send.gzipTo(formatBytesL(transmittedSize)) : msg.send.compressionNone;
       spec("spec-k").textContent = `K = ${encoder.k}`;
       showStreamPanels(true);
       // The tail of the status line is the door to the share dialog. Built by
       // hand because setStatus is textContent-only — and the next setStatus
       // wiping the button out is exactly right.
-      setStatus(`Streaming ${name} — `);
+      setStatus(msg.send.streaming(name));
       const share = document.createElement("button");
       share.type = "button";
       share.className = "text-button";
-      share.textContent = "Share receiver link";
+      share.textContent = msg.send.shareReceiverLink;
       share.addEventListener("click", openShareDialog);
       specs.append(share);
       // npm run diagnostics: announce this stream's settings so the server
@@ -586,10 +596,7 @@ async function startStream(revealStage = false) {
     const sinceLastTick = now - lastTickAt;
     lastTickAt = now;
     if (sinceLastTick > 1000) {
-      setStatus(
-        `Stream froze for ${(sinceLastTick / 1000).toFixed(1)} s — this window was hidden or ` +
-          `in the background. Keep it visible and focused; the receiver loses lock when it pauses.`,
-      );
+      setStatus(msg.send.stallWarning(fmtNumber(sinceLastTick / 1000, 1, 1)));
       if (import.meta.env.DEV && import.meta.env.VITE_DIAGNOSTICS === "1") {
         void fetch("/__diagnostics", {
           method: "POST",

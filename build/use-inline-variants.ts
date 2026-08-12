@@ -15,6 +15,9 @@ export function useInlineVariants(rootDir: string): Plugin {
     ["./worker-factory", "receive/worker-factory.inline.ts"],
     ["./wasm-url", "receive/wasm-url.inline.ts"],
     ["./support", "receive/support.inline.ts"],
+    // A single file speaks every language; the dynamic per-locale imports
+    // would also land after the entry's top-level await once inlined (TDZ).
+    ["./loaders", "shared/i18n/loaders.inline.ts"],
   ]);
   return {
     name: "use-inline-variants",

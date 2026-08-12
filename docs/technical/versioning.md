@@ -110,7 +110,10 @@ between 0.4.x and 0.5.0 fails in both directions. Both ends must be on 0.5.0
 or later.
 
 Who says so depends on which end is newer, because the verdict machinery is
-itself new in 0.5.0:
+itself new in 0.5.0 (since 0.6.0 the verdict wording is localized: the
+receiver says it in its own language, from the locale catalog — see
+[localization](localization.md); `frameVerdictMessage()` in protocol.ts
+remains the English reference wording, pinned to the catalog by test):
 
 - **0.5.0 receiver, 0.4.x sender** — the receiver names the mismatch: "That
   screen is sending an older Decimen format. Update the sending device."
